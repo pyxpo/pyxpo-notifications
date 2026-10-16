@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "nativeContract": 2,
+  "nativeContract": 3,
   "name": "notifications",
   "native": "Notifications",
   "ios": {
@@ -9,6 +9,7 @@
   "android": {
     "namespace": "dev.pyxpo.modules.notifications",
     "classes": ["dev.pyxpo.modules.notifications.NotificationsModule"],
-    "minSdk": 24
+    "minSdk": 24,
+    "dependencies": ["com.google.firebase:firebase-messaging:24.1.0"]
   }
 }

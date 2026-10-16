@@ -2,8 +2,8 @@
 
 Local notifications for [pyxpo](https://github.com/pyxpo/pyxpo) apps. The API follows
 [expo-notifications](https://docs.expo.dev/versions/latest/sdk/notifications/). iOS uses UserNotifications.
-Android posts with `NotificationManager` and schedules with `AlarmManager` (no Firebase); scheduled notifications
-are set again after a reboot or an app update.
+Android posts with `NotificationManager` and schedules with `AlarmManager`; scheduled notifications are set again
+after a reboot or an app update. Remote push uses FCM on Android and APNs on iOS (see below).
 
 ```sh
 pip install pyxpo-notifications
@@ -75,11 +75,39 @@ Triggers (`SchedulableTriggerInputTypes`):
 
 Times are local. camelCase names work too (`scheduleNotificationAsync`, `{"channelId": "alerts"}`).
 
+## Remote push
+
+Android uses FCM, iOS uses APNs. There is no Expo push service: your server sends to the device token directly.
+
+```toml
+[tool.pyxpo]
+modules = ["notifications"]
+plugins = [["pyxpo_notifications.plugin", {"googleServicesFile": "./google-services.json"}]]
+```
+
+Plugin options: `googleServicesFile` (from the Firebase console; Android has no FCM token without it), `mode`
+(iOS `aps-environment`, "development" or "production"), `enableBackgroundRemoteNotifications` (iOS
+`remote-notification` background mode).
+
+| Function | Notes |
+| --- | --- |
+| `get_device_push_token_async()` | `{"type": "android", "data": <FCM token>}` or `{"type": "ios", "data": <APNs token, hex>}`. |
+| `add_push_token_listener(fn)` | Called with the new token when it changes. |
+| `unregister_for_notifications_async()` | Android deletes the FCM token; iOS unregisters from APNs. |
+| `get_expo_push_token_async()` | Raises `NotSupportedError`. |
+
+A received push goes to the same listeners as a local notification. To send a test push through FCM HTTP v1:
+
+```sh
+python tools/send_push.py --key ~/.pyxpo-secrets/service-account.json --token <device token> \
+    --title "Hello" --body "from FCM"
+```
+
+The `google-services.json` file has no secrets. The service account key sends pushes for the whole project:
+keep it out of the app and the repo.
+
 ## Not supported yet
 
-- Remote push: `get_device_push_token_async`, `get_expo_push_token_async` and `add_push_token_listener` raise
-  `NotSupportedError` (they need Firebase on Android and an APNs AppDelegate hook on iOS). A remote notification
-  that arrives on iOS still reaches the listeners.
 - Categories and action buttons, attachments, custom sounds.
 
 ## Notes

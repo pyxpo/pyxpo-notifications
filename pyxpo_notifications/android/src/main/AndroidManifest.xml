@@ -15,5 +15,11 @@
         <activity android:name="dev.pyxpo.modules.notifications.NotificationResponseActivity"
             android:exported="false" android:noHistory="true" android:excludeFromRecents="true"
             android:taskAffinity="" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- Remote push (FCM). Inert until the app has Firebase settings (pyxpo_notifications.plugin). -->
+        <service android:name="dev.pyxpo.modules.notifications.NotificationsMessagingService" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

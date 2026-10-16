@@ -239,6 +239,12 @@ object NotificationsCore {
         main.postDelayed({ decide(id, null) }, 3000)
     }
 
+    /** A push with nothing to show (data only): only a running app hears about it. */
+    fun deliverSilently(req: JSONObject) {
+        val n = mapOf("date" to System.currentTimeMillis().toDouble(), "request" to requestMap(req))
+        ctx?.get()?.emit("Notifications.received", mapOf("notification" to n))
+    }
+
     fun decide(id: Int, behavior: JSONObject?) {
         pending.remove(id)?.invoke(behavior)
     }

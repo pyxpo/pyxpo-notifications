@@ -1,4 +1,4 @@
-"""Local notifications: the expo-notifications API.
+"""Local and remote notifications: the expo-notifications API.
 
     import pyxpo_notifications as Notifications
 
@@ -13,9 +13,10 @@
     })
     sub = Notifications.add_notification_response_received_listener(lambda r: print(r["notification"]))
 
-iOS uses UserNotifications. Android posts with `NotificationManager` and schedules with `AlarmManager` (no
-Firebase). Remote push tokens need Firebase (Android) or an APNs AppDelegate hook (iOS), which pyxpo does not
-have yet: the push token functions raise `NotSupportedError`.
+iOS uses UserNotifications. Android posts with `NotificationManager` and schedules with `AlarmManager`.
+Remote push uses APNs (iOS) and Firebase Cloud Messaging (Android): add `pyxpo_notifications.plugin` to
+`[tool.pyxpo] plugins` (see its docstring), then `get_device_push_token_async()` gives the token. Pushes arrive
+through the same received and response listeners, with trigger `{"type": "push", ...}`.
 """
 from __future__ import annotations
 
@@ -31,7 +32,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pyxpo.module_api import NotSupportedError, call, on_event, permission_response, platform, require_linked
 
-__version__ = "0.1.0a1"
+__version__ = "0.1.0a2"
 
 Notification = Dict[str, Any]
 NotificationResponse = Dict[str, Any]
@@ -90,7 +91,7 @@ class PermissionStatus(str, Enum):
     UNDETERMINED = "undetermined"
 
 
-_RECEIVED, _RESPONSE = "Notifications.received", "Notifications.response"
+_RECEIVED, _RESPONSE, _TOKEN = "Notifications.received", "Notifications.response", "Notifications.token"
 
 
 def _native() -> None:
@@ -442,6 +443,7 @@ EventSubscription = Subscription
 _received: List[Listener] = []
 _responses: List[Listener] = []
 _dropped: List[Listener] = []
+_tokens: List[Listener] = []
 _handler: Any = None
 _off: List[Callable[[], None]] = []
 
@@ -459,6 +461,7 @@ def _listen() -> None:
     if not _off:
         _off.append(on_event(_RECEIVED, _on_received))
         _off.append(on_event(_RESPONSE, _on_response))
+        _off.append(on_event(_TOKEN, _on_token))
     if platform() != "desktop":
         _native()
         call("Notifications", "listen")
@@ -486,6 +489,13 @@ def _on_response(payload: Any) -> None:
         return
     for fn in list(_responses):
         _run(fn, r)
+
+
+def _on_token(payload: Any) -> None:
+    if not payload:
+        return
+    for fn in list(_tokens):
+        _run(fn, payload)
 
 
 def _behavior(value: Any) -> Dict[str, bool]:
@@ -661,23 +671,33 @@ async def delete_notification_channel_async(channel_id: str) -> None:
     await call("Notifications", "deleteChannel", str(channel_id), reply=True)
 
 
-# remote push (not supported yet)
-
-def _no_push(name: str) -> NotSupportedError:
-    return NotSupportedError("%s needs remote push (Firebase on Android, an APNs AppDelegate hook on iOS), which "
-                             "pyxpo does not support yet; local notifications work" % name)
-
+# remote push
 
 async def get_device_push_token_async() -> Dict[str, Any]:
-    raise _no_push("get_device_push_token_async")
+    """The token your server sends pushes to: `{"type": "ios", "data": <APNs token, hex>}` or `{"type": "android",
+    "data": <FCM registration token>}`. Android needs the app's Firebase settings (`pyxpo_notifications.plugin` with
+    `googleServicesFile`); iOS needs the push entitlement (the same plugin) and a real device or a signed simulator
+    build. Ask for permission first to show the pushes."""
+    _native()
+    _listen()
+    return await call("Notifications", "getDevicePushToken", reply=True)
 
 
 async def get_expo_push_token_async(options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    raise _no_push("get_expo_push_token_async")
+    raise NotSupportedError("get_expo_push_token_async needs Expo's push service, which pyxpo does not use: send "
+                            "pushes with APNs or FCM to the token from get_device_push_token_async()")
+
+
+async def unregister_for_notifications_async() -> None:
+    """Stops remote pushes to this app: Android deletes its FCM token (a new one comes with the next token request),
+    iOS unregisters from APNs."""
+    _native()
+    await call("Notifications", "unregister", reply=True)
 
 
 def add_push_token_listener(listener: Listener) -> Subscription:
-    raise _no_push("add_push_token_listener")
+    """Calls `listener(token)` (the shape of `get_device_push_token_async()`) when the push token changes."""
+    return _add(_tokens, listener)
 
 
 getPermissionsAsync = get_permissions_async
@@ -707,6 +727,7 @@ deleteNotificationChannelAsync = delete_notification_channel_async
 getDevicePushTokenAsync = get_device_push_token_async
 getExpoPushTokenAsync = get_expo_push_token_async
 addPushTokenListener = add_push_token_listener
+unregisterForNotificationsAsync = unregister_for_notifications_async
 
 __all__ = [
     "DEFAULT_ACTION_IDENTIFIER", "SchedulableTriggerInputTypes", "AndroidImportance", "AndroidNotificationVisibility",
@@ -720,7 +741,7 @@ __all__ = [
     "clear_last_notification_response_async", "use_last_notification_response", "set_notification_channel_async",
     "get_notification_channels_async", "get_notification_channel_async", "delete_notification_channel_async",
     "get_device_push_token_async", "get_expo_push_token_async", "add_push_token_listener",
-    "getPermissionsAsync", "requestPermissionsAsync", "usePermissions", "scheduleNotificationAsync",
+    "unregister_for_notifications_async", "getPermissionsAsync", "requestPermissionsAsync", "usePermissions", "scheduleNotificationAsync",
     "getNextTriggerDateAsync", "getAllScheduledNotificationsAsync", "cancelScheduledNotificationAsync",
     "cancelAllScheduledNotificationsAsync", "getPresentedNotificationsAsync", "dismissNotificationAsync",
     "dismissAllNotificationsAsync", "getBadgeCountAsync", "setBadgeCountAsync", "setNotificationHandler",
@@ -728,5 +749,5 @@ __all__ = [
     "removeNotificationSubscription", "getLastNotificationResponseAsync", "clearLastNotificationResponseAsync",
     "useLastNotificationResponse", "setNotificationChannelAsync", "getNotificationChannelsAsync",
     "getNotificationChannelAsync", "deleteNotificationChannelAsync", "getDevicePushTokenAsync",
-    "getExpoPushTokenAsync", "addPushTokenListener",
+    "getExpoPushTokenAsync", "addPushTokenListener", "unregisterForNotificationsAsync",
 ]

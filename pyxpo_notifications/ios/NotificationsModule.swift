@@ -21,6 +21,11 @@ final class NotificationsModule: PxModule, PxAppLaunchObserver {
         switch method {
         case "listen":
             reply(nil, nil)
+        case "getDevicePushToken":
+            d.registerForPush(reply)
+        case "unregister":
+            UIApplication.shared.unregisterForRemoteNotifications()
+            reply(nil, nil)
         case "setHandler":
             d.handlerSet = args.first as? Bool ?? false
             reply(nil, nil)
@@ -176,7 +181,11 @@ final class NotificationsModule: PxModule, PxAppLaunchObserver {
             var d: [String: Any] = [:]
             for (k, v) in info { if let k = k as? String, k != "aps" { d[k] = v } }
             data = d
-            trigger = ["type": "push"]
+            var t: [String: Any] = ["type": "push"]
+            var payload: [String: Any] = [:]
+            for (k, v) in info { if let k = k as? String { payload[k] = v } }
+            if JSONSerialization.isValidJSONObject(payload) { t["payload"] = payload }
+            trigger = t
         }
         if !JSONSerialization.isValidJSONObject(["d": data]) { data = [String: Any]() }
         var content: [String: Any] = ["title": r.content.title.isEmpty ? NSNull() : r.content.title,
@@ -244,9 +253,63 @@ final class NotificationsDelegate: NSObject, UNUserNotificationCenterDelegate {
     private var pending: [Int: (UNNotificationPresentationOptions) -> Void] = [:]
 
     func install() {
+        hookAppDelegate()
         if installed { return }
         installed = true
         UNUserNotificationCenter.current().delegate = self
+    }
+
+    // MARK: APNs token
+
+    private var hooked = false
+    private var tokenReplies: [PxReply] = []
+
+    /// APNs reports the token to the app delegate, which the app owns. Its two callbacks are wrapped at runtime
+    /// (the app's own versions, if any, still run first), so apps need no AppDelegate code.
+    private func hookAppDelegate() {
+        guard !hooked, let delegate = UIApplication.shared.delegate else { return }
+        hooked = true
+        let cls: AnyClass = type(of: delegate)
+        typealias OkFn = @convention(c) (AnyObject, Selector, UIApplication, NSData) -> Void
+        typealias FailFn = @convention(c) (AnyObject, Selector, UIApplication, NSError) -> Void
+        let ok = #selector(UIApplicationDelegate.application(_:didRegisterForRemoteNotificationsWithDeviceToken:))
+        let fail = #selector(UIApplicationDelegate.application(_:didFailToRegisterForRemoteNotificationsWithError:))
+
+        let okOrig = class_getInstanceMethod(cls, ok).map(method_getImplementation)
+        let okBlock: @convention(block) (AnyObject, UIApplication, NSData) -> Void = { obj, app, token in
+            if let f = okOrig { unsafeBitCast(f, to: OkFn.self)(obj, ok, app, token) }
+            NotificationsDelegate.shared.registered(token as Data)
+        }
+        class_replaceMethod(cls, ok, imp_implementationWithBlock(okBlock), "v@:@@")
+
+        let failOrig = class_getInstanceMethod(cls, fail).map(method_getImplementation)
+        let failBlock: @convention(block) (AnyObject, UIApplication, NSError) -> Void = { obj, app, error in
+            if let f = failOrig { unsafeBitCast(f, to: FailFn.self)(obj, fail, app, error) }
+            NotificationsDelegate.shared.failed(error)
+        }
+        class_replaceMethod(cls, fail, imp_implementationWithBlock(failBlock), "v@:@@")
+    }
+
+    func registerForPush(_ reply: @escaping PxReply) {
+        hookAppDelegate()
+        guard hooked else { reply(nil, "The app has no UIApplication delegate to receive the push token"); return }
+        tokenReplies.append(reply)
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    private func registered(_ token: Data) {
+        let t: [String: Any] = ["type": "ios", "data": token.map { String(format: "%02x", $0) }.joined()]
+        let replies = tokenReplies
+        tokenReplies = []
+        replies.forEach { $0(t, nil) }
+        ctx?.emit("Notifications.token", t)
+    }
+
+    private func failed(_ error: NSError) {
+        let replies = tokenReplies
+        tokenReplies = []
+        // Without the aps-environment entitlement: add pyxpo_notifications.plugin to [tool.pyxpo] plugins.
+        replies.forEach { $0(nil, "Could not register for remote notifications: \(error.localizedDescription)") }
     }
 
     func decide(_ id: Int, _ b: [String: Any]?) {

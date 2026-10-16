@@ -3,6 +3,7 @@ package dev.pyxpo.modules.notifications
 import android.Manifest
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import dev.pyxpo.moduleapi.PxModule
@@ -13,8 +14,8 @@ import java.lang.ref.WeakReference
 
 /**
  * expo-notifications on Android: local notifications posted with NotificationManager and scheduled with
- * AlarmManager (no Firebase). State that outlives the activity (scheduled requests, the last tap) is in
- * [NotificationsCore].
+ * AlarmManager; remote push with Firebase Cloud Messaging ([NotificationsPush]). State that outlives the activity
+ * (scheduled requests, the last tap) is in [NotificationsCore].
  */
 class NotificationsModule : PxModule() {
     override val name = "Notifications"
@@ -24,7 +25,9 @@ class NotificationsModule : PxModule() {
         val core = NotificationsCore
         core.ctx = WeakReference(ctx)
         when (method) {
-            "listen" -> reply(null, null)
+            "listen" -> { NotificationsPush.tapped(ctx.activity.intent); reply(null, null) }
+            "getDevicePushToken" -> NotificationsPush.token(c, reply)
+            "unregister" -> NotificationsPush.unregister(c, reply)
             "setHandler" -> { core.handlerSet = args.optBoolean(0); reply(null, null) }
             "presentDecision" -> { core.decide(args.optInt(0, -1), args.optJSONObject(1)); reply(null, null) }
             "getPermissions" -> reply(permission(ctx), null)
@@ -40,7 +43,7 @@ class NotificationsModule : PxModule() {
             // Android launchers count notifications themselves; there is no app badge to read or set.
             "getBadge" -> reply(0, null)
             "setBadge" -> reply(false, null)
-            "getLastResponse" -> reply(core.lastResponse, null)
+            "getLastResponse" -> { NotificationsPush.tapped(ctx.activity.intent); reply(core.lastResponse, null) }
             "clearLastResponse" -> { core.lastResponse = null; reply(null, null) }
             "setChannel" -> reply(core.setChannel(c, args.getString(0), args.getJSONObject(1)), null)
             "getChannel" -> reply(core.channel(c, args.getString(0)), null)
@@ -51,6 +54,11 @@ class NotificationsModule : PxModule() {
             }
             else -> reply(null, "Notifications has no method $method")
         }
+    }
+
+    override fun onNewIntent(ctx: PxModuleContext, intent: Intent) {
+        NotificationsCore.ctx = WeakReference(ctx)
+        NotificationsPush.tapped(intent)
     }
 
     private fun nm(c: Context) = c.getSystemService(NotificationManager::class.java)
