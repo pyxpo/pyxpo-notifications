@@ -1,0 +1,19 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Exact timing on Android 12+ (SCHEDULE_EXACT_ALARM) is opt-in: add it to [tool.pyxpo.android] permissions. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application>
+        <receiver android:name="dev.pyxpo.modules.notifications.NotificationAlarmReceiver" android:exported="false" />
+        <receiver android:name="dev.pyxpo.modules.notifications.NotificationBootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+        <activity android:name="dev.pyxpo.modules.notifications.NotificationResponseActivity"
+            android:exported="false" android:noHistory="true" android:excludeFromRecents="true"
+            android:taskAffinity="" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    </application>
+</manifest>

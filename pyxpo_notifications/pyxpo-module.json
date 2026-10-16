@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 2,
+  "name": "notifications",
+  "native": "Notifications",
+  "ios": {
+    "classes": ["NotificationsModule"]
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.notifications",
+    "classes": ["dev.pyxpo.modules.notifications.NotificationsModule"],
+    "minSdk": 24
+  }
+}
