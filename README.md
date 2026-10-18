@@ -82,7 +82,7 @@ Android uses FCM, iOS uses APNs. There is no Expo push service: your server send
 ```toml
 [tool.pyxpo]
 modules = ["notifications"]
-plugins = [["pyxpo_notifications.plugin", {"googleServicesFile": "./google-services.json"}]]
+plugins = [["pyxpo_notifications.plugin", { googleServicesFile = "./google-services.json" }]]
 ```
 
 Plugin options: `googleServicesFile` (from the Firebase console; Android has no FCM token without it), `mode`
