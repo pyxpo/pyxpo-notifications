@@ -7,7 +7,7 @@ later, decide how to show one while the app is open, react to taps, manage Andro
 schedules with `AlarmManager`.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/notifications/docs/images/hero.png" width="820" alt="A notification scheduled five seconds ahead after the permission prompt, on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-notifications/main/docs/images/hero.png" width="820" alt="A notification scheduled five seconds ahead after the permission prompt, on Android and iOS">
 </p>
 
 ```python
@@ -117,7 +117,7 @@ def Reminder():
 > A button handler of `lambda: coroutine()` would never be awaited: count taps and let `use_async` do the work.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/notifications/docs/images/scheduled.png" width="720" alt="Permission granted and one notification scheduled, on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-notifications/main/docs/images/scheduled.png" width="720" alt="Permission granted and one notification scheduled, on Android and iOS">
 </p>
 
 ## Permission
