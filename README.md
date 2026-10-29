@@ -1,5 +1,7 @@
 # pyxpo-notifications
 
+[![CI](https://github.com/pyxpo/pyxpo-notifications/actions/workflows/ci.yml/badge.svg)](https://github.com/pyxpo/pyxpo-notifications/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/pypi/v/pyxpo-notifications)](https://pypi.org/project/pyxpo-notifications/) [![Python](https://img.shields.io/pypi/pyversions/pyxpo-notifications)](https://pypi.org/project/pyxpo-notifications/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Local and remote notifications for [pyxpo](https://github.com/pyxpo/pyxpo) apps written in Python. The API follows
 [expo-notifications](https://docs.expo.dev/versions/latest/sdk/notifications/): ask permission, schedule a notification for
 later, decide how to show one while the app is open, react to taps, manage Android channels, and receive push through APNs
